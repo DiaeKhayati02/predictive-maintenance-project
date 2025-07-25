@@ -1,5 +1,38 @@
-# version: '3.8'
+version: '3.8'
+
 services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.3.0
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,DOCKER://kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,DOCKER:PLAINTEXT
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
   postgres:
     image: postgres:latest
     environment:
@@ -10,31 +43,19 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-  kafka:
-    image: confluentinc/cp-kafka:7.3.0  
-    environment:
-      KAFKA_BROKER_ID: 1
-      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,DOCKER://kafka:9093
-      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,DOCKER:PLAINTEXT
-    depends_on:
-      - zookeeper
-    ports:
-      - "9092:9092"
-  zookeeper:
-    image: confluentinc/cp-zookeeper:latest
-    environment:
-      ZOOKEEPER_CLIENT_PORT: 2181
-      ZOOKEEPER_TICK_TIME: 2000
-    ports:
-      - "2181:2181"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d maintenance_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   jupyter:
     image: jupyter/scipy-notebook:latest
     ports:
       - "8888:8888"
     volumes:
       - ./notebooks:/home/jovyan/work
+
   grafana:
     image: grafana/grafana:latest
     ports:
@@ -44,5 +65,32 @@ services:
       - GF_SECURITY_ADMIN_PASSWORD=password
     volumes:
       - ./grafana:/var/lib/grafana
+
+  kafka_consumer:
+    build:
+      context: .
+      dockerfile: scripts/Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+    restart: unless-stopped
+
+  kafka_producer:
+    build:
+      context: .
+      dockerfile: scripts/producer.Dockerfile
+    depends_on:
+      kafka:
+        condition: service_healthy
+    volumes:
+      - ./data:/app/data
+    networks:
+      - default
+    restart: "no"  # Run once and exit
+
 volumes:
   postgres_data:
