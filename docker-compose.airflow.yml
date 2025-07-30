@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: maintenance_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  airflow-init:
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile.airflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:password@postgres:5432/maintenance_db
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/config:/opt/airflow/config
+    command: |
+      bash -c "
+        airflow db migrate
+        airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@example.com --password admin || echo 'User exists'
+        echo 'Initialization complete'
+      "
+
+  airflow-webserver:
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile.airflow
+    depends_on:
+      - airflow-init
+    ports:
+      - "8080:8080"
+    environment:
+      PYTHONWARNINGS: ignore::SyntaxWarning
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:password@postgres:5432/maintenance_db
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/config:/opt/airflow/config
+    command: airflow webserver
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  airflow-scheduler:
+    build:
+      context: ./airflow
+      dockerfile: Dockerfile.airflow
+    depends_on:
+      - airflow-init
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://admin:password@postgres:5432/maintenance_db
+    volumes:
+      - ./airflow/dags:/opt/airflow/dags
+      - ./airflow/logs:/opt/airflow/logs
+      - ./airflow/config:/opt/airflow/config
+    command: airflow scheduler
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type SchedulerJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  postgres_data:
