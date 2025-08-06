@@ -1,9 +1,8 @@
-# producer.py
-import pandas as pd
 from kafka import KafkaProducer
+import pandas as pd
 import json
-from datetime import datetime
 import time
+import socket
 
 def wait_for_kafka():
     """Wait for Kafka to be ready"""
@@ -11,7 +10,6 @@ def wait_for_kafka():
         try:
             producer = KafkaProducer(
                 bootstrap_servers=['kafka:9093'],
-                value_serializer=lambda v: json.dumps(v).encode('utf-8'),
                 api_version=(0, 10, 1)
             )
             producer.close()
@@ -27,39 +25,37 @@ def main():
     # Wait for Kafka to be ready
     wait_for_kafka()
     
-    # Read CSV file
-    try:
-        df = pd.read_csv('data/test.csv')
-        print(f"Loaded {len(df)} records from CSV")
-    except FileNotFoundError:
-        print("Error: data/test.csv not found")
-        return
-    
-    # Create producer
+    # Initialize Kafka producer
     producer = KafkaProducer(
         bootstrap_servers=['kafka:9093'],
         value_serializer=lambda v: json.dumps(v).encode('utf-8'),
         api_version=(0, 10, 1)
     )
     
-    print("Kafka producer connected successfully")
+    # Read CSV file
+    df = pd.read_csv('./data/validation_data_with_timestamps.csv')
     
-    # Send data
+    # Send each row to Kafka
     for index, row in df.iterrows():
-        row_dict = row.to_dict()
-        row_dict['timestamp'] = datetime.now().isoformat()
+        # Convert row to dictionary, ensuring all columns are included
+        data = row.to_dict()
+        # Ensure datetime and timestamp are strings (JSON-serializable)
+        if 'datetime' in data:
+            data['datetime'] = str(data['datetime'])
+        if 'timestamp' in data:
+            data['timestamp'] = str(data['timestamp'])
         
         try:
-            future = producer.send('test_data', row_dict)
-            # Wait for message to be sent
-            future.get(timeout=10)
+            producer.send('test_data', value=data)
             print(f"Sent record {index + 1}/{len(df)}")
+            time.sleep(0.1)  # Small delay to avoid overwhelming Kafka
         except Exception as e:
             print(f"Error sending record {index + 1}: {e}")
     
+    # Ensure all messages are sent
     producer.flush()
     producer.close()
-    print("All messages sent successfully")
+    print("All records sent. Producer closed.")
 
 if __name__ == "__main__":
     main()
