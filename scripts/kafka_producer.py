@@ -33,7 +33,7 @@ def main():
     )
     
     # Read CSV file
-    df = pd.read_csv('./data/validation_data_with_timestamps.csv')
+    df = pd.read_csv('./data/clean_telemetry_data2.csv')
     
     # Send each row to Kafka
     for index, row in df.iterrows():
