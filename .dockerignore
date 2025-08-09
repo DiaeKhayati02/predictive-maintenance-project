@@ -1,0 +1,23 @@
+airflow/
+airflow/logs/
+airflow/config/
+
+# Ignore Python and virtual environment files
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Ignore Docker-related files
+Dockerfile.airflow
+docker-compose.airflow.yml
+
+# Ignore other common files
+.git/
+.gitignore
+.env
+*.md
