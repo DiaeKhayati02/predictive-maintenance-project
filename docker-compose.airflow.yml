@@ -80,6 +80,22 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-
+  flask-app:
+    build:
+      context: .
+      dockerfile: Flask.Dockerfile
+    depends_on:
+      - postgres
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: maintenance_db
+      DB_USER: admin
+      DB_PASSWORD: password
+      RESET_ON_STARTUP: "true"  # Reset variable on container startup
+    ports:
+      - "5000:5000"
+    networks:
+      - default
 volumes:
   postgres_data:

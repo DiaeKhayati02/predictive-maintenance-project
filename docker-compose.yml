@@ -66,32 +66,35 @@ services:
     volumes:
       - ./grafana:/var/lib/grafana
 
-  kafka_consumer:
-    build:
-      context: .
-      dockerfile: scripts/Dockerfile
-    depends_on:
-      kafka:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-    networks:
-      - default
-    restart: unless-stopped
-    entrypoint: ["/bin/sh", "-c", "python /app/kafka_consumer.py"]
+  # kafka_consumer:
+  #   build:
+  #     context: .
+  #     dockerfile: scripts/Dockerfile
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #     postgres:
+  #       condition: service_healthy
+  #   networks:
+  #     - default
+  #   restart: unless-stopped
+  #   entrypoint: ["/bin/sh", "-c", "python /app/kafka_consumer.py"]
 
-  kafka_producer:
-    build:
-      context: .
-      dockerfile: scripts/producer.Dockerfile
-    depends_on:
-      kafka:
-        condition: service_healthy
-    volumes:
-      - ./data:/app/data
-    networks:
-      - default
-    restart: "no"  # Run once and exit
+  # kafka_producer:
+  #   build:
+  #     context: .
+  #     dockerfile: scripts/producer.Dockerfile
+  #   depends_on:
+  #     kafka:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ./data:/app/data
+  #   networks:
+  #     - default
+  #   restart: "no"  # Run once and exit
+
+  
+
 
 volumes:
   postgres_data:
